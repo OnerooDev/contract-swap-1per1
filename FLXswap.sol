@@ -18,24 +18,30 @@ contract FLXswap is Ownable, ReentrancyGuard {
     IERC20 private token1;
     uint112 private reserve0;
     uint112 private reserve1;
-    uint32  private blockTimestampLast; // uses single storage slot, accessible via getReserves
+    uint32  private blockTimestampLast;
 
     event Sync(uint112 reserve0, uint112 reserve1);
 
     /**
-     * @dev Constructor sets token that can be received
+     * @dev Constructor sets token that can be swaped
      */
     constructor (IERC20 _token0, IERC20 _token1) public {
       token0 = _token0;
       token1 = _token1;
     }
 
+    /**
+      * @dev Function for get contract's current reserves
+      */
     function getReserves() public view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast) {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
         _blockTimestampLast = blockTimestampLast;
     }
 
+    /**
+      * @dev Function for swap $token1=xFL(eth) to $token0=xFL(bsc)
+      */
     function swapToBSC(uint256 amount) external nonReentrant {
         require(amount > 0, 'FLXswap: INSUFFICIENT_AMOUNT');
         (uint112 _reserve0, uint112 _reserve1,) = getReserves(); // gas savings
@@ -50,6 +56,9 @@ contract FLXswap is Ownable, ReentrancyGuard {
         _update(b_balance0, b_balance1);
     }
 
+    /**
+      * @dev Function for swap $token0=xFL(bsc) to $token1=xFL(eth)
+      */
     function swapToETH(uint256 amount) external nonReentrant {
         require(amount > 0, 'FLXswap: INSUFFICIENT_AMOUNT');
         (uint112 _reserve0, uint112 _reserve1,) = getReserves(); // gas savings
@@ -64,34 +73,11 @@ contract FLXswap is Ownable, ReentrancyGuard {
         _update(e_balance0, e_balance1);
     }
 
-    // force reserves to match balances
+    /**
+      * @dev Function for force reserves to match balances
+      */
     function sync() external {
         _update(IERC20(token0).balanceOf(address(this)), IERC20(token1).balanceOf(address(this)));
-    }
-
-    /**
-     * @dev Iniciate Stake, xFL(BSC) tokens
-     */
-    function doStake(uint256 amount) external onlyOwner {
-        require(amount > 0, 'FLXswap: INSUFFICIENT_AMOUNT');
-
-        _stake(token0, amount);
-
-        _update(IERC20(token0).balanceOf(address(this)), IERC20(token1).balanceOf(address(this)));
-    }
-
-    /**
-     * @dev Iniciate EndStake, xFL(BSC) tokens
-     */
-    function endStake(uint256 amount) external onlyOwner {
-        require(amount > 0, 'FLXswap: INSUFFICIENT_AMOUNT');
-        (uint112 _reserve0, uint112 _reserve1,) = getReserves(); // gas savings
-        require(amount <= _reserve0, 'FLXswap: INSUFFICIENT_ETH_xFL');
-
-        _send(token0, amount);
-        uint end_balance0 = _reserve0.sub(amount);
-
-        _update(end_balance0, _reserve1);
     }
 
     /**
@@ -107,12 +93,14 @@ contract FLXswap is Ownable, ReentrancyGuard {
         emit Sync(reserve0, reserve1);
     }
 
+    // send tokens from contract
     function _send(IERC20 token, uint256 amount) internal {
         address to = msg.sender;
 
         token.safeTransfer(to, amount);
     }
 
+    // request tokens from user
     function _stake(IERC20 token, uint256 amount) internal {
         address from = msg.sender;
         uint256 allow_amount = IERC20(token).allowance(msg.sender, address(this));
